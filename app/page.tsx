@@ -1,23 +1,23 @@
 "use client";
 
 import Image from "next/image";
-import { useRef, useState } from "react";
+import { use, useRef, useState } from "react";
 import Footer from "../components/Footer";
 import Header from "../components/Header";
 import LoadingDots from "../components/LoadingDots";
+import { set } from "react-hook-form";
 
 export default function Home() {
   const [loading, setLoading] = useState(false);
-  const [bio, setBio] = useState("");
-  const [vibe, setVibe] = useState("Professional");
-
   const [goal, setGoal] = useState("");
-  const [timeline, setTimeline] = useState("");
+  const [timeframe, setTimeframe] = useState("");
   const [current, setCurrent] = useState("");
   const [other, setOther] = useState("");
 
-  const [generatedBios, setGeneratedBios] = useState<String>("");
-  const [isLlama, setIsLlama] = useState(false);
+  const [overview, setOverview] = useState<{name:string, actions:string[]}[]>();
+  const [timeline, setTimeline] = useState<{period:string, focus_point:string, activities:string[], milestones:string[]}[]>();
+  const [timetable, setTimetable] = useState<{time:string, tasks:string, description:string}[]>();
+
 
   const outRef = useRef<null | HTMLDivElement>(null);
 
@@ -27,42 +27,43 @@ export default function Home() {
     }
   };
 
-  const prompt = `Generate 3 ${
-    vibe === "Casual" ? "relaxed" : vibe === "Funny" ? "silly" : "Professional"
-  } twitter biographies with no hashtags and clearly labeled "1.", "2.", and "3.". Only return these 3 twitter bios, nothing else. ${
-    vibe === "Funny" ? "Make the biographies humerous" : ""
-  }Make sure each generated biography is less than 300 characters, has short sentences that are found in Twitter bios, and feel free to use this context as well: ${bio}${
-    bio.slice(-1) === "." ? "" : "."
-  }`;
-
   const runApp = async (e: any) => {
-    if (!goal || !timeline || !current) {
+    if (!goal || !timeframe || !current) {
       alert("Please fill out all required fields");
       return;
     }
 
-
     e.preventDefault();
     
-    setGeneratedBios("");
+    setOverview(undefined);
+    setTimeline(undefined);
+    setTimetable(undefined);
 
     setLoading(true);
-    const response = await fetch("/api/together", {
+
+    const response = await fetch("/api/gemini", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        prompt,
-        model: isLlama
-          ? "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo"
-          : "mistralai/Mixtral-8x7B-Instruct-v0.1",
+        goal,
+        timeframe,
+        current,
+        other,
       }),
-    });
+    })
 
-    if (!response.ok) {
-      throw new Error(response.statusText);
-    }
+    const data = await response.json()  as {
+      overview : {key_areas: {name:string, actions:string[]}[]}, 
+      timeline : {period:string, focus_point:string, activities:string[], milestones:string[]}[],
+      timetable : {time:string, tasks:string, description:string}[]
+    };
+    console.log(data);
+
+    setOverview(data.overview.key_areas);
+    setTimeline(data.timeline);
+    setTimetable(data.timetable);
 
     scrollToOutput();
     setLoading(false);
@@ -104,13 +105,13 @@ export default function Home() {
               <div className="flex items-center space-x-3">
                 <div className="h-8 w-8 rounded-3xl bg-black text-white flex items-center justify-center">2</div>
                 <p className="text-left font-medium">
-                  Timeline
+                  Timeframe
                 </p>
               </div>
             </div>
             <input
-              value={timeline}
-              onChange={(e) => setTimeline(e.target.value)}
+              value={timeframe}
+              onChange={(e) => setTimeframe(e.target.value)}
               className="w-full rounded-md border-gray-300 shadow-sm focus:border-black focus:ring-black my-5"
               placeholder={"5 Years"}
               />
@@ -171,33 +172,64 @@ export default function Home() {
 
 
 
-        <div className="space-y-10 my-10">
-          {generatedBios || true && (
+        <div className="space-y-10 w-full my-10">
+          {(overview || timeline || timetable )&& (
             <>
+              <hr/>
               <div>
                 <h2
-                  className="sm:text-4xl text-3xl font-bold text-slate-900 mx-auto"
+                  className="sm:text-4xl text-3xl font-extralight text-slate-900 mx-auto"
                   ref={outRef}
                 >
-                  Here's How you get there
+                  Here's how YOU get there
                 </h2>
               </div>
 
-              <div className="space-y-8 flex flex-col items-center justify-center max-w-xl mx-auto">
+              <div className="space-x-8 flex items-center justify-evenly w-full mx-auto ">
+                {overview && 
+                <div className="CARD border border-gray-200 w-64 h-96 rounded-xl cursor-pointer p-4">
+                  <div className="font-bold text-center text-xl rounded-t-xl -m-4 bg-black text-white mb-5 p-4"> KEY POINTS </div>
+                  {
+                    overview?.map((point, index) => {
+                      return (
+                      <div key={index} className="text-left font-bold my-5">
+                        <div>{point.name}</div>
+                      </div>)
+                    })
+                  }
+                </div>
+                }
+
+                {timeline && 
+                <div className="CARD border border-gray-200 w-64 h-96 rounded-xl cursor-pointer p-4 overflow-y-auto">
+                  <div className="font-bold text-center text-xl rounded-t-xl -m-4 bg-black text-white mb-5 p-4"> Timeline </div>
+                  {
+                    timeline.map((period, index) => {
+                      return (
+                      <div key={index} className="text-left justify-between my-5">
+                        <div className="text-base">{period.period}</div>
+                        <div className="text-sm font-light">{period.focus_point}</div>
+                      </div>)
+                    })
+                  }
+                </div>
+                }
+
                 
-                {generatedBios
-                  .substring(generatedBios.indexOf("1") + 3)
-                  .split(/2\.|3\./)
-                  .map((generatedBio) => {
-                    return (
-                      <div
-                        className="bg-white rounded-xl shadow-md p-4 hover:bg-gray-100 transition cursor-copy border"
-                        key={generatedBio}
-                      >
-                        <p>{generatedBio}</p>
-                      </div>
-                    );
-                  })}
+                {timetable && 
+                <div className="CARD border border-gray-200 w-64 h-96 rounded-xl cursor-pointer p-4 overflow-y-auto">
+                  <div className="font-bold text-center text-xl rounded-t-xl -m-4 bg-black text-white mb-5 p-4"> Time Table </div>
+                  {
+                    timetable.map((period, index) => {
+                      return (
+                      <div key={index} className="text-left justify-between my-5">
+                        <div className="text-base">{period.time}</div>
+                        <div className="text-sm font-light">{period.description}</div>
+                      </div>)
+                    })
+                  }
+                </div>
+                }
 
               </div>
             </>
